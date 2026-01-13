@@ -44,7 +44,9 @@ program
     .alias("rm")
     .argument("[pathOrBranch]", "Path of the worktree or branch to remove.")
     .option("-f, --force", "Force removal of worktree and deletion of the folder", false)
-    .description("Remove a specified worktree. Cleans up the .git/worktrees references.")
+    .option("-s, --skip-cleanup", "Skip cleanup scripts defined in worktrees.json", false)
+    .option("-t, --trust", "Trust and run cleanup commands without confirmation (for CI environments)", false)
+    .description("Remove a specified worktree. Runs cleanup-worktree scripts from worktrees.json before removal.")
     .action(removeWorktreeHandler);
 program
     .command("merge")

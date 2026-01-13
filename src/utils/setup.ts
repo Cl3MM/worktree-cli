@@ -9,6 +9,7 @@ import { confirmCommands } from "./tui.js";
 
 interface WorktreeSetupData {
     "setup-worktree"?: string[];
+    "cleanup-worktree"?: string[];
     [key: string]: unknown;
 }
 
@@ -211,4 +212,90 @@ export async function runSetupScripts(worktreePath: string): Promise<boolean> {
         }
         return false;
     }
+}
+
+/**
+ * Load and parse cleanup commands from worktrees.json
+ */
+async function loadCleanupCommands(repoRoot: string): Promise<{ commands: string[]; filePath: string } | null> {
+    const paths = [
+        join(repoRoot, ".cursor", "worktrees.json"),
+        join(repoRoot, "worktrees.json"),
+    ];
+
+    for (const configPath of paths) {
+        try {
+            await stat(configPath);
+            const content = await readFile(configPath, "utf-8");
+            const data = JSON.parse(content) as WorktreeSetupData;
+
+            if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray(data["cleanup-worktree"])) {
+                const commands = data["cleanup-worktree"];
+                if (commands.length > 0) {
+                    return { commands, filePath: configPath };
+                }
+            }
+        } catch {
+            // Not found, try next
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Execute cleanup commands before worktree removal (SECURE)
+ *
+ * This function loads cleanup-worktree commands from worktrees.json and executes them
+ * with user confirmation (unless --trust flag is set).
+ *
+ * @param worktreePath - Path to the worktree where commands should be executed
+ * @param options - Execution options (trust flag bypasses confirmation)
+ * @returns true if cleanup commands were found and executed, false if no cleanup commands exist
+ */
+export async function runCleanupScriptsSecure(
+    worktreePath: string,
+    options: { trust?: boolean } = {}
+): Promise<boolean> {
+    const repoRoot = await getRepoRoot();
+    if (!repoRoot) {
+        return false;
+    }
+
+    const cleanupResult = await loadCleanupCommands(repoRoot);
+
+    if (!cleanupResult) {
+        return false;
+    }
+
+    console.log(chalk.blue(`Found cleanup config: ${cleanupResult.filePath}`));
+
+    // Show commands and ask for confirmation (unless --trust flag is set)
+    const shouldRun = await confirmCommands(cleanupResult.commands, {
+        title: "The following cleanup commands will be executed:",
+        trust: options.trust,
+    });
+
+    if (!shouldRun) {
+        console.log(chalk.yellow("Cleanup commands skipped."));
+        return false;
+    }
+
+    // Execute commands
+    const env = { ...process.env, ROOT_WORKTREE_PATH: repoRoot };
+    for (const command of cleanupResult.commands) {
+        console.log(chalk.gray(`Executing: ${command}`));
+        try {
+            await execa(command, { shell: true, cwd: worktreePath, env, stdio: "inherit" });
+        } catch (cmdError: unknown) {
+            if (cmdError instanceof Error) {
+                console.error(chalk.red(`Cleanup command failed: ${command}`), cmdError.message);
+            } else {
+                console.error(chalk.red(`Cleanup command failed: ${command}`), cmdError);
+            }
+            // Continue with other commands
+        }
+    }
+    console.log(chalk.green("Cleanup commands completed."));
+    return true;
 }

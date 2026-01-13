@@ -137,16 +137,39 @@ wt remove [pathOrBranch] [options]
 
 **Interactive Selection**: Run `wt remove` without arguments to select a worktree to remove.
 
+**Cleanup Scripts**: If `cleanup-worktree` is defined in `worktrees.json`, those commands will be executed before removal (with user confirmation).
+
 Options:
 - `-f, --force`: Force removal without confirmation
+- `-s, --skip-cleanup`: Skip cleanup scripts defined in worktrees.json
+- `-t, --trust`: Trust and run cleanup commands without confirmation (for CI environments)
 
 Example:
 ```bash
-wt remove                    # Interactive selection
-wt remove feature/login      # Remove by branch name
-wt remove ./path/to/worktree # Remove by path
-wt remove feature/old -f     # Force remove
+wt remove                        # Interactive selection
+wt remove feature/login          # Remove by branch name
+wt remove ./path/to/worktree     # Remove by path
+wt remove feature/old -f         # Force remove
+wt remove feature/old -s         # Skip cleanup scripts
+wt remove feature/old -t         # Run cleanup without confirmation
 ```
+
+### Cleanup Worktree Configuration
+
+You can define cleanup commands that run automatically when removing a worktree:
+
+```json
+{
+  "setup-worktree": ["npm install"],
+  "cleanup-worktree": ["docker-compose down", "echo 'Cleanup complete'"]
+}
+```
+
+Cleanup behavior:
+- **Automatic execution**: Runs before `wt remove` (after confirmation)
+- **Skip option**: Use `--skip-cleanup` or `-s` to bypass
+- **Trust mode**: Use `--trust` to run without confirmation (CI environments)
+- **Environment variables**: `$ROOT_WORKTREE_PATH` is available
 
 ### Purge multiple worktrees
 

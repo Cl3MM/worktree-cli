@@ -4,6 +4,7 @@ import { stat, rm } from "node:fs/promises";
 import { findWorktreeByBranch, findWorktreeByPath } from "../utils/git.js";
 import { selectWorktree, confirm } from "../utils/tui.js";
 import { withSpinner } from "../utils/spinner.js";
+import { runCleanupScriptsSecure } from "../utils/setup.js";
 export async function removeWorktreeHandler(pathOrBranch = "", options) {
     try {
         await execa("git", ["rev-parse", "--is-inside-work-tree"]);
@@ -69,6 +70,10 @@ export async function removeWorktreeHandler(pathOrBranch = "", options) {
                 console.log(chalk.yellow("Removal cancelled."));
                 process.exit(0);
             }
+        }
+        // Execute cleanup scripts if not skipped
+        if (!options.skipCleanup) {
+            await runCleanupScriptsSecure(targetPath, { trust: options.trust });
         }
         // Remove the worktree
         try {

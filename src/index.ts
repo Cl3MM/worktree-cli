@@ -84,8 +84,18 @@ program
     "Force removal of worktree and deletion of the folder",
     false
   )
+  .option(
+    "-s, --skip-cleanup",
+    "Skip cleanup scripts defined in worktrees.json",
+    false
+  )
+  .option(
+    "-t, --trust",
+    "Trust and run cleanup commands without confirmation (for CI environments)",
+    false
+  )
   .description(
-    "Remove a specified worktree. Cleans up the .git/worktrees references."
+    "Remove a specified worktree. Runs cleanup-worktree scripts from worktrees.json before removal."
   )
   .action(removeWorktreeHandler);
 
