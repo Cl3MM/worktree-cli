@@ -77,6 +77,76 @@ export async function getRepoRoot(cwd: string = "."): Promise<string | null> {
     }
 }
 
+/**
+ * Resolves the start point to use when creating a NEW branch for a worktree
+ * (i.e. the ref passed after `git worktree add -b <branch> <path> <ref>`).
+ *
+ * Historically this was omitted entirely, which makes git default to the
+ * current HEAD of the main checkout - frequently stale, since the main
+ * worktree is rarely pulled before spawning a new one. This resolves to the
+ * remote's default branch instead, fetched fresh, so the new worktree is
+ * born up to date.
+ *
+ * Fails open to the local HEAD (previous behavior) whenever the remote
+ * lookup isn't possible: no `origin` remote, offline, or an undetectable
+ * default branch. This preserves every legitimate use case (repo without a
+ * remote, deliberate branching from local HEAD via --base HEAD, an
+ * integration branch named something other than "main").
+ */
+export async function resolveNewBranchStartPoint(
+    explicitBase: string | undefined,
+    cwd: string = "."
+): Promise<string> {
+    if (explicitBase) {
+        console.log(chalk.blue(`Base explicite demandée pour la nouvelle branche : ${explicitBase}`));
+        return explicitBase;
+    }
+
+    try {
+        await execa("git", ["-C", cwd, "remote", "get-url", "origin"]);
+    } catch {
+        console.log(chalk.gray("Pas de remote 'origin' détecté : la nouvelle branche part du HEAD local (comportement historique)."));
+        return "HEAD";
+    }
+
+    let defaultBranch: string | null = null;
+    try {
+        const { stdout } = await execa("git", ["-C", cwd, "symbolic-ref", "refs/remotes/origin/HEAD"]);
+        defaultBranch = stdout.trim().replace("refs/remotes/origin/", "");
+    } catch {
+        try {
+            const { stdout } = await execa("git", ["-C", cwd, "remote", "show", "origin"]);
+            const match = stdout.match(/HEAD branch:\s*(\S+)/);
+            if (match) defaultBranch = match[1];
+        } catch {
+            // Remote injoignable (hors ligne ?) : on tombera sur le HEAD local plus bas.
+        }
+    }
+
+    if (!defaultBranch) {
+        console.warn(chalk.yellow("⚠️  Impossible de déterminer la branche par défaut de 'origin'. La nouvelle branche part du HEAD local, qui peut être périmé."));
+        console.warn(chalk.yellow("   Vérifiez après création : git -C <worktree> rev-list --count HEAD..origin/<branche-integration>"));
+        return "HEAD";
+    }
+
+    try {
+        await execa("git", ["-C", cwd, "fetch", "origin", defaultBranch, "--quiet"]);
+    } catch {
+        console.warn(chalk.yellow(`⚠️  "git fetch origin ${defaultBranch}" a échoué (hors ligne ?). Utilisation du dernier état connu de origin/${defaultBranch} s'il existe, sinon repli sur le HEAD local.`));
+    }
+
+    const remoteRef = `origin/${defaultBranch}`;
+    try {
+        await execa("git", ["-C", cwd, "rev-parse", "--verify", "--quiet", remoteRef]);
+        console.log(chalk.green(`Base de la nouvelle branche : ${remoteRef} (à jour).`));
+        return remoteRef;
+    } catch {
+        console.warn(chalk.yellow(`⚠️  ${remoteRef} introuvable localement. La nouvelle branche part du HEAD local, qui peut être périmé.`));
+        console.warn(chalk.yellow(`   Remise à niveau après création : cd <worktree> && git fetch origin && git rebase origin/${defaultBranch}`));
+        return "HEAD";
+    }
+}
+
 export async function detectGitProvider(cwd: string = "."): Promise<'gh' | 'glab' | null> {
     try {
         const { stdout } = await execa("git", ["-C", cwd, "remote", "get-url", "origin"]);

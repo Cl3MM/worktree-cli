@@ -3,11 +3,11 @@ import chalk from "chalk";
 import { stat } from "node:fs/promises";
 import { resolve, join, dirname, basename } from "node:path";
 import { getDefaultEditor } from "../config.js";
-import { isWorktreeClean, isMainRepoBare } from "../utils/git.js";
+import { isWorktreeClean, isMainRepoBare, resolveNewBranchStartPoint } from "../utils/git.js";
 
 export async function newWorktreeHandler(
     branchName: string = "main",
-    options: { path?: string; checkout?: boolean; install?: string; editor?: string }
+    options: { path?: string; checkout?: boolean; install?: string; editor?: string; base?: string }
 ) {
     try {
         // 1. Validate we're in a git repo
@@ -87,8 +87,11 @@ export async function newWorktreeHandler(
 
             if (!branchExists) {
                 console.log(chalk.yellow(`Branch "${branchName}" doesn't exist. Creating new branch with worktree...`));
-                // Create a new branch and worktree in one command with -b flag
-                await execa("git", ["worktree", "add", "-b", branchName, resolvedPath]);
+                // Create a new branch and worktree in one command with -b flag, based
+                // on the remote's default branch (fetched fresh) rather than the
+                // possibly stale local HEAD of the main checkout.
+                const startPoint = await resolveNewBranchStartPoint(options.base);
+                await execa("git", ["worktree", "add", "-b", branchName, resolvedPath, startPoint]);
             } else {
                 console.log(chalk.green(`Using existing branch "${branchName}".`));
                 await execa("git", ["worktree", "add", resolvedPath, branchName]);

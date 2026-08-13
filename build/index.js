@@ -22,6 +22,7 @@ program
     .option("-c, --checkout", "Create new branch if it doesn't exist and checkout automatically", false)
     .option("-i, --install <packageManager>", "Package manager to use for installing dependencies (npm, pnpm, bun, etc.)")
     .option("-e, --editor <editor>", "Editor to use for opening the worktree (e.g., code, webstorm, windsurf, etc.)")
+    .option("-b, --base <ref>", "Explicit start point for a NEW branch (skips the automatic origin/<default-branch> resolution, e.g. --base HEAD to branch from the local checkout on purpose)")
     .description("Create a new worktree for the specified branch, install dependencies if specified, and open in editor.")
     .action(newWorktreeHandler);
 program
@@ -31,6 +32,7 @@ program
     .option("-c, --checkout", "Create new branch if it doesn't exist and checkout automatically", false)
     .option("-i, --install <packageManager>", "Package manager to use for installing dependencies (npm, pnpm, bun, etc.)")
     .option("-e, --editor <editor>", "Editor to use for opening the worktree (e.g., code, webstorm, windsurf, etc.)")
+    .option("-b, --base <ref>", "Explicit start point for a NEW branch (skips the automatic origin/<default-branch> resolution, e.g. --base HEAD to branch from the local checkout on purpose)")
     .description("Create a new worktree and run setup scripts from worktrees.json or .cursor/worktrees.json")
     .action(setupWorktreeHandler);
 program
